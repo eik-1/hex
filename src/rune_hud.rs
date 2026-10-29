@@ -549,13 +549,16 @@ impl Gpu {
                     resolution: [target.size.0 as f32, target.size.1 as f32],
                     ..*uniforms
                 };
-                self.staging.write_buffer(&self.capsule, 0, bytes(&uniforms));
+                self.staging
+                    .write_buffer(&self.capsule, 0, bytes(&uniforms));
                 &self.capsule_pipeline
             }
             Drawn::Dots(frame) => {
                 let uniforms = DotUniforms::new(frame, layout, target);
-                self.staging.write_buffer(&self.dot_uniforms, 0, bytes(&uniforms));
-                self.staging.write_buffer(&self.dots, 0, &packed_dots(frame));
+                self.staging
+                    .write_buffer(&self.dot_uniforms, 0, bytes(&uniforms));
+                self.staging
+                    .write_buffer(&self.dots, 0, &packed_dots(frame));
                 &self.dot_pipeline
             }
         };
