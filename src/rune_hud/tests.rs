@@ -139,7 +139,7 @@ fn rune_hud_frames() {
     let adapter = block_on(instance.request_adapter(&Default::default())).expect("a GPU adapter");
     let (device, queue) = block_on(adapter.request_device(&Default::default())).unwrap();
     let format = wgpu::TextureFormat::Rgba8Unorm;
-    let gpu = Gpu::new(&device, format);
+    let gpu = Gpu::new(&device, &queue, format);
     let scale = 2.0;
     let window = if dots {
         CAPTURE_DOT_WINDOW
@@ -193,7 +193,7 @@ fn rune_hud_frames() {
             }
         }
         let mut encoder = device.create_command_encoder(&Default::default());
-        gpu.draw(&queue, &mut encoder, &view, drawn, layout, target);
+        gpu.draw(&mut encoder, &view, drawn, layout, target);
         encoder.copy_texture_to_buffer(
             texture.as_image_copy(),
             wgpu::TexelCopyBufferInfo {

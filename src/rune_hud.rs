@@ -418,15 +418,18 @@ impl Compositor<Hud> for HudCompositor {
             return;
         };
         if self.gpu.as_ref().is_none_or(|gpu| gpu.format != f.format) {
-            self.gpu = Some(Gpu::new(f.device, f.format));
+            self.gpu = Some(Gpu::new(f.device, f.queue, f.format));
         }
         let gpu = self.gpu.as_ref().expect("created above");
-        gpu.draw(f.queue, f.encoder, f.target, drawn, layout, target);
+        gpu.draw(f.encoder, f.target, drawn, layout, target);
     }
 }
 
 struct Gpu {
     format: wgpu::TextureFormat,
+    /// Reused upload memory: `Queue::write_buffer` allocates a buffer on
+    /// every call, and the HUD uploads every frame.
+    staging: rune_staging::Staging,
     capsule: wgpu::Buffer,
     dot_uniforms: wgpu::Buffer,
     dots: wgpu::Buffer,
@@ -436,7 +439,7 @@ struct Gpu {
 }
 
 impl Gpu {
-    fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Gpu {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Gpu {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("hex hud"),
             source: wgpu::ShaderSource::Wgsl(include_str!("rune_hud.wgsl").into()),
@@ -521,6 +524,7 @@ impl Gpu {
         };
         Gpu {
             format,
+            staging: rune_staging::Staging::new(device, queue),
             capsule,
             dot_uniforms,
             dots,
@@ -533,7 +537,6 @@ impl Gpu {
     /// Clears `view` and draws `drawn` into it.
     fn draw(
         &self,
-        queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         drawn: &Drawn,
@@ -546,16 +549,17 @@ impl Gpu {
                     resolution: [target.size.0 as f32, target.size.1 as f32],
                     ..*uniforms
                 };
-                queue.write_buffer(&self.capsule, 0, bytes(&uniforms));
+                self.staging.write_buffer(&self.capsule, 0, bytes(&uniforms));
                 &self.capsule_pipeline
             }
             Drawn::Dots(frame) => {
                 let uniforms = DotUniforms::new(frame, layout, target);
-                queue.write_buffer(&self.dot_uniforms, 0, bytes(&uniforms));
-                queue.write_buffer(&self.dots, 0, &packed_dots(frame));
+                self.staging.write_buffer(&self.dot_uniforms, 0, bytes(&uniforms));
+                self.staging.write_buffer(&self.dots, 0, &packed_dots(frame));
                 &self.dot_pipeline
             }
         };
+        self.staging.flush(encoder);
         let mut pass = clear_pass(encoder, view);
         pass.set_pipeline(pipeline);
         pass.set_bind_group(0, &self.bind, &[]);

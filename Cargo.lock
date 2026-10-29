@@ -1878,6 +1878,7 @@ dependencies = [
  "rune",
  "rune-kit",
  "rune-motion",
+ "rune-staging",
  "rune-theme-opencode",
  "scrawl-capture",
  "screencapturekit",
